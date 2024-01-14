@@ -1,0 +1,12 @@
+{
+    "ckpt": "sd1.5/v1-5-pruned-emaonly.ckpt",
+    "width": 512,
+    "height": 768,
+    "steps": 20,
+    "cfg": 8,
+    "prompt": {
+        "positive": "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,",
+        "negative": ""
+    },
+    "seed": 1102746145488361
+}
