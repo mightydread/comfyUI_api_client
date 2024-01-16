@@ -17,23 +17,23 @@ def read_json_file(file_path):
         return json.load(f)
 
 parser = argparse.ArgumentParser(description='Generate images based on expressions.')
-parser.add_argument('--mode', choices=['single', 'multiple'], default='single',
+parser.add_argument('-m', '--mode', choices=['single', 'multiple'], default='single',
                     help='Select the mode: single (default) or multiple')
-parser.add_argument('--expressions', default='',
+parser.add_argument('-e', '--expressions', default='',
                     help='Comma-separated list of expressions to generate images')
-parser.add_argument('--random', action='store_true',
+parser.add_argument('-r', '--random', action='store_true',
                     help='Random seed')
-parser.add_argument('--param-overrides', default='',
+parser.add_argument('-x', '--param-overrides', default='',
                     help='Override specific parameters in params.json. Specify as key=value pairs separated by commas.')
-parser.add_argument('--input-folder', default='./',
+parser.add_argument('-i', '--input-folder', default='./',
                     help='Path to folder containing the input files')
-parser.add_argument('--output-folder', default='output_images',
+parser.add_argument('-o','--output-folder', default='output_images',
                     help='Path to output folder')
-parser.add_argument('--params-file', default='params.json',
+parser.add_argument('-p', '--params-file', default='params.json',
                     help='Path to the params JSON file')
-parser.add_argument('--workflow-api-file', default='workflow_api.json',
+parser.add_argument('-w', '--workflow-api-file', default='workflow_api.json',
                     help='Path to the workflow API JSON file')
-parser.add_argument('--key-mappings', default='key_mappings.py',
+parser.add_argument('-k', '--key-mappings', default='key_mappings.py',
                     help='Provide a file containing key mappings for parameter assignments')
 parser.add_argument('--server-address', default='127.0.0.1',
                     help='Server address of the ComfyUI server')
@@ -125,7 +125,8 @@ def save_generated_images(images, params, prompt):
             else:
                 expression = ""
             node_title = prompt[node_id]["_meta"]["title"]
-            image_filename = f"{expression}_{node_title}_{index}.png"
+            seed = params["seed"]
+            image_filename = f"{expression}_{node_title}_{seed}.png"
             output_path = os.path.join(output_directory, image_filename)
             save_image(image_data, output_path)
 
@@ -138,8 +139,8 @@ def generate_images_for_expressions(ws, params, prompt, expressions, overrides=N
     for expression in expressions:
         params["expression"] = expression
         param_assigner.assign_params(prompt, params, key_mappings_file, overrides)
-        images = generate_simple(ws, params, prompt)
-        save_generated_images(images, params, prompt)
+        generate_simple(ws, params, prompt, overrides)
+
 
 def main():
     ws = websocket.WebSocket()
