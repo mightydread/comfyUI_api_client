@@ -126,7 +126,7 @@ def save_generated_images(images, params, prompt):
                 expression = ""
             node_title = prompt[node_id]["_meta"]["title"]
             seed = params["seed"]
-            image_filename = f"{expression}_{node_title}_{seed}.png"
+            image_filename = f"{expression}_{node_title}_{seed}_{index}.png"
             output_path = os.path.join(output_directory, image_filename)
             save_image(image_data, output_path)
 
