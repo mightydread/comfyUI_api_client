@@ -8,6 +8,8 @@ import argparse
 import param_assigner
 import random
 import logging
+import sys
+from PIL import Image
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,8 @@ parser.add_argument('-m', '--mode', choices=['single', 'multiple'], default='sin
                     help='Select the mode: single (default) or multiple')
 parser.add_argument('-e', '--expressions', default='',
                     help='Comma-separated list of expressions to generate images')
+parser.add_argument('-l', '--last-only', action='store_true',
+                    help='Save only last images')
 parser.add_argument('-r', '--random', action='store_true',
                     help='Random seed')
 parser.add_argument('-x', '--param-overrides', default='',
@@ -45,6 +49,7 @@ args = parser.parse_args()
 SERVER_ADDRESS = args.server_address
 PORT = args.server_port
 PROTOCOL = args.server_protocol
+WEBSOCKET_PROTOCOL = "wss" if args.server_protocol == "https" else "ws"
 base_url = f"{PROTOCOL}://{SERVER_ADDRESS}:{PORT}"
 CLIENT_ID = str(uuid.uuid4())
 OUTPUT_FOLDER = args.output_folder
@@ -109,7 +114,11 @@ def save_image(image_data, output_path):
     with open(output_path, "wb") as image_file:
         image_file.write(image_data)
 
-def save_generated_images(images, params, prompt):
+def convert_to_webp(png_path, output_path):
+    with Image.open(png_path) as img:
+        img.save(f"{output_path}.webp", "WEBP")
+
+def save_generated_images(images, params, prompt, last_only=False):
     # Dynamic output directory
     output_directory = os.path.join(OUTPUT_FOLDER)
     if "character" in params:
@@ -126,29 +135,33 @@ def save_generated_images(images, params, prompt):
                 expression = ""
             node_title = prompt[node_id]["_meta"]["title"]
             seed = params["seed"]
-            image_filename = f"{expression}_{node_title}_{seed}_{index}.png"
-            output_path = os.path.join(output_directory, image_filename)
-            save_image(image_data, output_path)
+            if last_only:
+                if node_title == 'rembg':
+                    image_filename = expression
+                    output_path = os.path.join(output_directory, image_filename)
+                    save_image(image_data, f"{output_path}.png")
+                    convert_to_webp(f"{output_path}.png", output_path)
+                    os.remove(f"{output_path}.png")
+            else:
+                image_filename = f"{expression}_{node_title}_{seed}_{index}"
+                output_path = os.path.join(output_directory, image_filename)
+                save_image(image_data, output_path)
 
-def generate_simple(ws, params, prompt, overrides=None):
+def generate_simple(ws, params, prompt, overrides=None, last_only=False):
     param_assigner.assign_params(prompt, params, key_mappings_file, overrides)
     images = get_images(ws, prompt)
-    save_generated_images(images, params, prompt)
+    save_generated_images(images, params, prompt, last_only)
 
-def generate_images_for_expressions(ws, params, prompt, expressions, overrides=None):
+def generate_images_for_expressions(ws, params, prompt, expressions, overrides=None, last_only=False):
     for expression in expressions:
         params["expression"] = expression
         param_assigner.assign_params(prompt, params, key_mappings_file, overrides)
-        generate_simple(ws, params, prompt, overrides)
+        generate_simple(ws, params, prompt, overrides, last_only)
 
 
 def main():
     ws = websocket.WebSocket()
-    try:
-        ws.connect(f"ws://{SERVER_ADDRESS}:{PORT}/ws?clientId={CLIENT_ID}")
-    except Exception as e:
-        logging.error(f"WebSocket connection failed: {e}")
-
+    last_only = True if args.last_only else False
     overrides = {}
     if args.param_overrides:
         overrides = {item.split('=')[0]: item.split('=')[1] for item in args.param_overrides.split(',')}
@@ -157,10 +170,14 @@ def main():
         for seed_key in seed_keys:
             overrides[seed_key] = random.randint(1, 1125899906842624)
             logging.info(f"{seed_key}:{overrides[seed_key]}")
+    try:
+        ws.connect(f"{WEBSOCKET_PROTOCOL}://{SERVER_ADDRESS}:{PORT}/ws?clientId={CLIENT_ID}")
+    except Exception as e:
+        logging.error(f"WebSocket connection failed: {e}")
     if args.mode == 'multiple':
         if args.expressions:
             expression_list = [expr.strip() for expr in args.expressions.split(',')]
-            generate_images_for_expressions(ws, params, prompt, expression_list, overrides)
+            generate_images_for_expressions(ws, params, prompt, expression_list, overrides, last_only)
         else:
             logging.error("Please provide a list of expressions using --expressions.")
     else:
